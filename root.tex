@@ -1,0 +1,357 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%2345678901234567890123456789012345678901234567890123456789012345678901234567890
+%        1         2         3         4         5         6         7         8
+
+\documentclass[letterpaper, 10 pt, conference]{ieeeconf}  % Comment this line out if you need a4paper
+
+%\documentclass[a4paper, 10pt, conference]{ieeeconf}      % Use this line for a4 paper
+
+\IEEEoverridecommandlockouts                              % This command is only needed if 
+                                                          % you want to use the \thanks command
+
+\overrideIEEEmargins                                      % Needed to meet printer requirements.
+
+%In case you encounter the following error:
+%Error 1010 The PDF file may be corrupt (unable to open PDF file) OR
+%Error 1000 An error occurred while parsing a contents stream. Unable to analyze the PDF file.
+%This is a known problem with pdfLaTeX conversion filter. The file cannot be opened with acrobat reader
+%Please use one of the alternatives below to circumvent this error by uncommenting one or the other
+%\pdfobjcompresslevel=0
+%\pdfminorversion=4
+
+% See the \addtolength command later in the file to balance the column lengths
+% on the last page of the document
+
+% The following packages can be found on http:\\www.ctan.org
+%\usepackage{graphics} % for pdf, bitmapped graphics files
+%\usepackage{epsfig} % for postscript graphics files
+%\usepackage{mathptmx} % assumes new font selection scheme installed
+%\usepackage{times} % assumes new font selection scheme installed
+%\usepackage{amsmath} % assumes amsmath package installed
+%\usepackage{amssymb}  % assumes amsmath package installed
+
+\usepackage{lipsum}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts,bm}
+\usepackage{xcolor}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\title{\LARGE \bf
+LOL: Lidar-only Odometry and Localization in 3D point cloud maps*
+}
+
+
+\author{Dávid Rozenberszki and András L. Majdik$^{1}$% <-this % stops a space
+\thanks{*The research reported in this paper was supported by the Hungarian Scientific Research Fund (No.\ NKFIH OTKA KH-126513) and by the project: Exploring the Mathematical Foundations of Artificial Intelligence 2018-1.2.1-NKP-00008.
+}% <-this % stops a space
+\thanks{$^{1}$Dávid Rozenberszki and András L. Majdik are with the Machine Perception Research Laboratory,
+        MTA SZTAKI, Hungarian Academy of Sciences, Institute for Computer Science and Control, 1111 Budapest, Hungary
+        {\tt\small \{rozenberszki,majdik\}@sztaki.hu}}%
+%\thanks{$^{2}$András L. Majdik is with the the Machine Perception Research Laboratory,
+%       MTA SZTAKI, Hungarian Academy of Sciences, Institute for Computer Science and Control, 1111 Budapest, Hungary
+%        {\tt\small majdik@sztaki.hu}}%
+}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+\pagestyle{empty}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{abstract}
+% We deal with the problem of odometry and localization for Lidar-equipped vehicles driving in urban or residental environments.
+%, where a premade target map exists to localize against.
+In this paper we deal with the problem of odometry and localization for Lidar-equipped vehicles driving in urban environments, where a premade target map exists to localize against.
+In our problem formulation, to correct the accumulated drift of the Lidar-only odometry we apply a place recognition method to detect geometrically similar locations between the online 3D point cloud and the a priori offline map.
+% This approach differs from the original SLAM algorithms in the prior loop of mapping as in our case it is based on a existing target map to localize against.
+% The Lidar-only odometry is based on a state-of-the art lidar odometry algorithm, while the localization problem is tackled by a segment matching algorithm.
+In the proposed system, we integrate a state-of-the-art Lidar-only odometry algorithm with a recently proposed 3D point segment matching method by complementing their advantages. 
+% Both of the two sub-problems addressed in this paper are based and solved by state-of-the-art algorithms. The odometry is obtained by a high frequency but low fidelity velocity calculations with additional refinement and matching of the registered pointclouds in the map, while the localization is depending on a segment-based representation of the Lidar environment. 
+%Our contribution in this problem was to find the best performing methods for the subtasks and modify them to perform together completing each other deficiencies without losing the ability for real-time performance and high frequency localization. 
+% Our contribution in this problem after the selection of algorithms was to integrate them together to complement each others deficiencies and implement additional steps to increase the global localization reliability and precision. 
+Also, we propose additional enhancements in order to reduce the number of false matches between the online point cloud and the target map, and to refine the position estimation error whenever a good match is detected.
+% Our solution of correspondence filtering between the target and local segments is based on an advanced RANSAC method to reduce the number of false matches. 
+% We also integrated an additional step for the position update with ICP refinement of the segment point clouds after their prior transformation by cenroids.
+%improved the matching accuracy with a RANSAC filter and solved the problem of relocalization after finding correspondences.
+% The proposed approach is tested on several Kitti datasets of different lengths and environments.
+We demonstrate the utility of the proposed LOL system on several Kitti datasets of different lengths and environments, where the relocalization accuracy and the precision of the vehicle's trajectory were significantly improved in every case, while still being able to maintain real-time performance.
+
+% Our LOL algorithm succeeded to improve from the original methods in the relocalization accuracy in every case while  still being able maintain real-time performance.
+\end{abstract}
+
+%\begin{IEEEkeywords}
+%Lidar, Odometry, Localization, 3D Point Clouds
+% Localization, Mapping, Range Sensing, Computer Vision for Transportation, Autonomous Vehicle Navigation 
+%\end{IEEEkeywords}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{SUPPLEMENTARY ATTACHMENTS}
+%Please note that 
+%this paper is accompanied by 
+The source code of the proposed algorithm is publicly available at: \url{https://github.com/RozDavid/LOL}
+A video demonstration is available at: \url{https://youtu.be/ektGb5SQGRM}
+
+\section{INTRODUCTION}
+
+% problem definition
+In this paper, we deal with the challenges of globally localizing a robot in urban environments using exclusively Light Detection and Ranging (Lidar) measurements. Parallel a Lidar odometry and mapping algorithm is running to calculate the estimated consecutive poses from the streaming Lidar point clouds in real-time, while the global position updates are recognized against a previously known point cloud of a target map---accepted as ground-truth--- to cancel the built-up drift. 
+
+% motivation
+Our motivation stems from the certain need for Lidar based sensors in autonomous navigation and driving as these types of measurements can provide relatively high-frequency data, with constant irrespective of the distance measured. Also compared to simple RGB or RGB-D images it is generally less sensitive to seasonal and adversarial weather changes. In many applications though, they complete each other together with other sensors (e.g. Inertial Measurement Unit (IMU), wheel odometry, radar) for the best performance in machine perception, however for true redundancy, these sub-systems must work independently as well, to avoid dangerous situations from sensor malfunction. Using solely Lidar data has its difficulties also, as they operate on almost one scale lower frequency as cameras and even two or three lower as IMU sensors. Moreover, their scans are sparse in points, but usually still computationally expensive to process them in real-time.
+
+% Recent achievements in laser-based technology were significant in either the hardware or the algorithm development. Lidars have been reduced in size and weight but doubled in frequency or density. They can be now handhold and used from a battery \cite{handhold} or even attached to a Micro Aerial Vehicle (MAV) \cite{uav}, with the expected spread of flash Lidars, the performance will be even higher. 
+% ezt inkabb kihagynam: In spite of all these, there are significantly higher number of research papers dealing with the problem of visual deep learning and image processing in autonomous driving, than Lidar based methods. 
+% Utilizing the benefits of the Lidar state-of-the-art algorithms reached superb performance in both Odometry and Localization problems as well, but they cannot merge these sub-problems in one all-round algorithm. 
+
+% SOA
+In case of pure Lidar odometry the LOAM \cite{loam} algorithm scores among the highest in term of translational and rotational errors on the Kitti Vision Benchmark \cite{kitti} with 2-axis Lidars such as Velodynes.
+% This method calculates the odometry of the moving Lidar by frame-to-frame comparison of the scans while using these scans to refine the low fidelity velocity estimate by fine matching and registration of the point clouds into a coordinate system aligned global map. 
+This method estimates the six DoF (Degree of Freedom) displacement of a moving Lidar with very low drift on short trajectories by frame-to-frame comparison of the consecutive scans, and by fine matching and registration of the consecutive point clouds into a coordinate system aligned online map. 
+% Limitation of SOA
+%As the odometry calculation covers only one part of our overall approach it was essential for us to find a method that can operate with low drift in various environments, without exceeding a reasonable computational complexity, the LOAM algorithm satisfied both our requirements. 
+% However, in the original LOAM algorithm there is no place recognition method to detect loop-closure situations whenever the vehicle returns to a previously visited location in the environment. 
+However, in case of long trajectories and since the drift is continuously accumulated a significant error could build up in the position estimation, c.f. Fig. \ref{fig:loam_maps} top row.
+
+% Beyond SOA
+In our problem formulation, to correct the accumulated error in the odometry we apply a place recognition method to detect geometrically similar locations between the online and the a priori offline 3D point cloud map. Our approach is opposite to Simultaneous Localization and Mapping (SLAM) systems, where the goal is to detect loop-closure situations whenever the vehicle returns to a previously visited location in the environment, within the online map. For the place recognition frontend we chose to integrate the SegMap \cite{segmap} method, that is a state of the art algorithm for the extraction and matching of 3D point cloud segments. 
+
+% Contributions 
+Our main contribution is the integration and adaptation of the LOAM and SegMap algorithms into a novel solution, creating thus a Lidar-only Odometry and Localization (LOL) method that eliminates the need of any other supplementary sensor, e.g., Inertial Measurement Unit (IMU), wheel encoder, and satellite-based Global Positioning System (GPS). Furthermore, we included some additional improvements in the acceptance of correct matches, by applying further geometrical constraints complementing the feature similarity ones. Namely, we apply a RANSAC based geometric verification, and once a good match is detected between the online measurements end the target map, we only search for similar 3D Lidar segments (with relaxed similarity constraints) in the neighbourhood of the current location defined by the location uncertainty. Also, we only use the shift between the target map and the online source segments centroids as a prior, and we refine the final transformation by applying a fine-grained ICP matching between the two point clouds. We tested the proposed algorithm on several Kitti datasets, c.f. Fig. \ref{fig:loam_maps} bottom row, and found a considerable improvement in term of precision without a significant computational cost increase. 
+% There were bigger differences in approach in the problem of Lidar localization against a target map, that will be detailed in Section \ref{localization}. After testing and research in possibilities we chose the also state-of-the art SegMatch \cite{segmatch} and SegMap \cite{segmap} algorithms to compare and test against each other, both performing more than sufficiently. These methods have outstanding performance in point cloud segmentation and feature description. The only difference in between is the way they describe individual segments, while SegMatch operates with the geometry-based ensemble of shape histograms, while SegMap with data-driven learning-based descriptors with semantic information and reconstruction capability from low dimensional feature space.
+% The applied algorithms will be compared to other approaches in Section \ref{related} and detailed thoroughly in Section \ref{proposed_system}. We have to highlight here that our goal was not to create a novel approach in the sub-tasks of the Lidar only odometry and Localization problem (LOL) in 3D point cloud maps, but to find and merge the already created state-of-the-art algorithms in such way, that their strengths are completed, but their deficiencies are solved by each other. This algorithm differs from the original SLAM algorithms that the target map of the localization part is given, thus does not require the first, mapping loop of the SLAM algorithms, but can optimize its trajectory from the beginning against an accepted ground truth. 
+
+To summarize, this paper advances the state-of-the-art with the following contributions:
+\begin{itemize}
+%    \item After examination of possibilities the selection of two state-of-the-art algorithms and their modification in such a way to complement each others performance.
+    \item We present a novel Lidar-only odometer and Localization system by integrating and complementing the advantages of two state of the algorithms. 
+    \item We propose a set of enhancements: (i) a RANSAC-based geometrical verification to reduce the number of false  
+    %increase the number of true-positive 
+    matches between the online point cloud and the offline map; and (ii) a fine-grained ICP alignment to refine the relocalization accuracy whenever a good match is detected.
+    \item We publicly release the source code of the proposed system.
+%    \item Implement an advanced two-stage geometric filtering verification with consecutive location- and Random Sample Consensus (RANSAC) based steps.
+
+%    \item Integrate an ICP-based localization transformation matrix calculation into the SegMap algorithm, to acquire and refine the required relocalization updates.
+
+%    \item Publishing the source code of our LOL problem solution with the prepared demonstration files for testing and for any use. 
+\end{itemize}{}
+
+The remainder of the paper is organized as follows: related work is presented in Section \ref{related}, the details of the proposed system are described in Section \ref{proposed_system}, followed by experiments in Section \ref{experiments} and conclusions in Section \ref{conclusion}.
+
+\section{RELATED WORK} \label{related}
+
+\begin{figure*}[!h]
+\centerline{\includegraphics[width=0.8\textwidth]{figures/lol_flowchart_5.png}}\par
+\caption{Flowchart of the complete Lidar Odometry and Localization algorithm, where the blue color represents the parts originated from the LOAM, orange color from the SegMap algorithm and the green modules are our contribution. When only the border is green as in the Incremental Pose Graph Mapping Module we modified the original SegMap method to incorporate the relocalization in the global map.}
+\label{fig:loam-segmap_flowchart}
+\end{figure*}
+
+Lidar sensors are robust and precise ranging sensors for a wide range of weather conditions and distances, thus making it crucial for autonomous navigation problems. 
+% Hereby and for the rest of this paper, our LOL problem needs to be separated into two, almost separate problems. 
+The related scientific literature can be grouped along with the two sub-problems addressed in this paper. Namely, the odometry measurements are calculated with the frequency of the scans providing a continuous pose estimate, while the re-localization happens occasionally against a previously known target ground truth map, only when an adequate number of similarities are detected.
+
+As the ICP (Iterative Closest Point) algorithms become the dominant method for the alignment of three-dimensional models based on geometry \cite{essential_icp}, it is used as the initial step of most Lidar based odometry calculation problems. While typical ICPs assume that the points in the cloud are measured simultaneously and not sequentially (practically it is rather 4D than 3D) as most available rangefinders operate, it is difficult to avoid accumulated tracking error for continuous motion. For fast-moving objects such as autonomous vehicles an additional second step is incorporated into the algorithm to remove the distortion with know velocity measured from IMU sensors in \cite{imu_icp}, with multiple sensors using extended Kalman Filter (EKF) \cite{ekf_icp} or calculating the velocity directly from the Lidar scans without the aid of additional sensors such as in \cite{vicp}. Additionally, the precision of the estimate can be further improved by incorporating a lower frequency mapping and geometric point cluster matching method into the odometry \cite{zlot}, calculating loop closures in \cite{bosse} or representing the surface with Implicit Moving Least Squares (IMLS) \cite{imls_icp}. 
+
+There is an even bigger difference in approaches to the problem of localization. On the one hand, one can explore curb detection based methods. Wang et al. \cite{curb} approached the solution by detecting the curbs at every single frame, densified with the projection of the previous detections into the current frame, based on the vehicle dynamics, applying the beam model to the contours and finally matching the extracted contour to the high-precision target map. Another approach with similar idea by Hata et al. \cite{curb_mc} is simply using these curbs complemented with a robust regression method named Least Trimmed Squares (LTS) as the input of the Monte Carlo Localization algorithm \cite{monte-carlo}. These methods share the same strengths in the independence of scale, as they both operate in the given area of the target map around the position estimate.
+
+Numerous research works are tackling the problem of localization based on the comparison of local keypoint features of the local- and target map. Bosse and Zlot \cite{bosse-zlot} are using 3D \textit{Gestalt} descriptors for the description of point cloud directly and vote their nearest neighbours in the feature space with a vote-matrix representation. Range-image conversion approaches are also present with features such as Speeded Up Robust Features (SURFs) in \cite{surf1, surf2}, but the closest to our segment matching approach are the ones including features such as Fast Point Feature Histogram (FPFH) \cite{fpfh}.
+
+A more general approach of the problem when global descriptors are used for the local point clouds and compared to the database of target map segments for instance in \cite{rohling} or at Magnusson et al. \cite{magnusson}.
+%, where a 1-D histogram of point heights are used with the restriction of ground objects or at Magnusson et al. \cite{magnusson}, where the cloud is split into overlapping grids and direction invariant shape properties are computed (spherical, linear and types of planar). These properties are stored in a matrix of surface histograms and compared to the target for place recognition. 
+A higher-level representation of the point cloud segment of object-level was presented by Finman et al. \cite{object}, but only for RGB-D cameras and a small number of objects. Most global feature-based descriptors though operate on a preprocessed, segmented point clouds of the local and global frame, describing the objects individually, and requiring a good prior segmentation algorithm. On well-defined segments, there are existing algorithms that are not relying on simplistic geometric features such as Symmetric Shape Distance in \cite{ssdistance}. The fastest emerging trend of deep learning is also applicable in point cloud environments such as segments and can be used for description or reconstruction as well. The learning-based method opens a completely new window to solving the above problems in a data-driven fashion. Weixin et al. in \cite{l3net} presented L3-Net a 3D convolution RNN directly operating on the point clouds and was tested to exceed the results of the geometry-based pipelines even on various environments. Zeng et al. proposed the 3DMatch in \cite{3dmatch} that is one of the first data-driven CNN for localization in the 3D segment space, robust to point of view. Autoencoder networks are presented in \cite{autoe1, autoe2} for localization and reconstruction as well. A different and interesting approach is the DeepICP \cite{deepicp}, that is an end-to-end 3D point cloud registration framework replacing standard RANSAC based ICP algorithms for matching the local and target clouds, resulting in a comparably better performance than previous state-of-the-art geometry-based methods. % Here the keypoints are detected by the weighting layer of the cloud, the attached section region is represented by grid voxels, the matching points are generated by the generation layer, and finally a closed-loop Singular Value Decomposition (SVD) is performed in the keypoint pairs.
+
+The introduced related works were listed without being exhaustive. 
+%, yet showed that the field abounds in superb methods. 
+These works used very different approaches reaching high performance, but only focusing on a section of our problem. In most real-world scenarios in autonomous driving applications, target maps are or will be available to localize against, and should be utilized if one can find true matches with high confidence. Though the necessity is given, the field lacks in comprehensive Lidar based odometry and localization methods for real-world applications.
+
+\section{PROPOSED SYSTEM} \label{proposed_system}
+In this section, we present the building blocks of the proposed method for our Lidar-only odometry and Localization (LOL) solution. First, we introduce the general structure and the data flow between the different components and their connections to help the reader understand the logic behind our approach.
+% and will detail the used algorithms and our contributions later in detail. 
+% Next, we briefly present the main components: (i) the Lidar Odometry and Mapping (LOAM) algorithm \cite{loam}, that is responsible for real-time state estimate of the vehicle with robust and high-frequency performance; (ii) the Segment Matching (SegMap) \cite{segmap} localization methods will be expounded that is responsible for the recognition of the same segments between the local and target maps of the scene. 
+Next, we briefly present the Lidar Odometry and Mapping (LOAM) \cite{loam}, and the Segment Matching (SegMap) \cite{segmap} algorithms.
+Finally, we highlight the changes we've made to integrate them, and we present further enhancements to calculate the position updates from the matching segments.  
+
+
+\subsection{System architecture} \label{system_architecture}
+We visualized the data flow and the logical diagram of our architecture in Fig. \ref{fig:loam-segmap_flowchart}. Here the modules shown by the blue colour are originated from the LOAM algorithm, the orange ones from the SegMap algorithm and finally the modules represented with green color are our contribution and additions to integrate these into the proposed solution. 
+
+As Fig. \ref{fig:loam-segmap_flowchart} indicates, two inputs are required for our LOL algorithm to operate with an additional assumption for start position before first localization. Firstly, we rely on the target map in the form of a 3D point cloud, where we would like to localize our vehicle. For starting the algorithm we first take the point cloud map, segment it and describe the created segments in a way that will be detailed later in Subsection \ref{localization}. This way we create a database of segments where we can search by the global position of the segment centroids and access their feature vector values to compare against our local map segments for calculating the correspondence candidates and later matches. Secondly, when the target map is set, we can start streaming the lidar scans for the rest of the sequence. The scans are forwarded to the Point Cloud Registration module, the first part of the LOAM algorithm, where it is filtered, registered and transmitted to the following modules. Here the odometry is calculated with maintaining the pose transform of the vehicle in the global reference frame by a prior odometry calculation, then a refinement of the pose with the mapping module all detailed in Subsection \ref{loam} and shown on Fig. \ref{fig:loam-segmap_flowchart}. The very same scans are used for building the local map of the vehicle but only used for this purpose when there is an odometry estimate available for the local frame in the global space. These scans are densified by utilizing the last \textit{n}---a predefined parameter---scans with their belonging odometry estimate, then segmented and described the same way as previously the target map, only in an online manner. 
+
+The last orange module of Fig. \ref{fig:loam-segmap_flowchart} the segmented local map compared to the local area of the target map and the matches are found between the most similar segments. The similarity is defined in the absolute distance of n dimension feature vectors, where \textit{n} depends on the descriptor module of SegMatch \cite{segmatch} or SegMap. The correspondence candidates are here filtered by our two-stage RANSAC based method to filter the outliers, thus false positive matches are removed before calculating a general transformation matrix for the global relocalization. 
+
+Finally, to calculate a more accurate localization after the prior join of segment centroids, we apply an ICP refinement to the local and target segment point clouds as it will be detailed in \ref{our_contribution}. This final and combined update transformation matrix is inserted into the incremental pose graph mapping module of the SegMap algorithm, simultaneously feedbacked for the creation of the local map and published as the true global trajectory of the vehicle.
+
+\subsection{Lidar-only odometry}\label{loam}
+
+The problem is addressed for the estimation of the ego-motion of a pre-calibrated 3D lidar, based on the perceived high-frequency point clouds. The additional mapping function is not used to update the target maps, though fully taken advantage of for refining the odometry estimate, as will be detailed later in this subsection. We have to note, that this subsection will be only a brief introduction for the complete LOAM algorithm, but can be found in the original paper.
+
+\begin{figure*}[ht!]
+    \begin{center} \begin{tabular}{c@{\hspace{10mm}}c@{\hspace{10mm}}c@{\hspace{10mm}}}
+        \includegraphics*[width=0.25\linewidth]{figures/drive18_loam_map.png} &
+        \includegraphics*[width=0.25\linewidth]{figures/drive_27_loam_map_2.png} &
+        \includegraphics*[width=0.25\linewidth]{figures/drive28_loam_map.png} \\
+        \includegraphics*[width=0.25\linewidth]{figures/drive18_traj.png} &
+        \includegraphics*[width=0.25\linewidth]{figures/drive27_traj.png} &
+        \includegraphics*[width=0.25\linewidth]{figures/drive28_traj.png} \\
+         (a) & (b) & (c)\\
+    \end{tabular}
+        \caption{The result of the LOAM mapping algorithm, tested on various length Kitti \cite{kitti} datasets. In the top row the ground truth map is visualized with black points, while the self built map points on the green-red scale according to the vertical height. In the bottom row we compared the original LOAM trajectory with red color to our localization updated algorithm visualized by green color. (a) Drive 18, 04:36 minutes, $\approx 2200 m$ (b) Drive 27, 07:35 minutes, $\approx 3660 m$ (c) Drive 28, 08:38 minutes, $\approx4125 m$
+% NAGYON NAGY HIBA: kimaradt az also sor magyarayata. pl.  Top row: the result of the Loam mapping algorithm, tested on various length Kitti [19] datasets: (a) Drive 18, 04:36 minutes, $\approx 2200 m$ (b) Drive 27, 07:35 minutes, $\approx 3660 m$ (c) Drive 28, 08:38 minutes, $\approx4125 m$. The ground truth map is visualized with black points, while the self built map points on the green-red scale according to the vertical height. Bottom row: the results obtained with the proposed LOL method (green line) with respect to the baseline Loam algorithm (red line) using the different datasets.     
+        }
+    \label{fig:loam_maps}
+    \end{center}
+\end{figure*}
+
+As it can be seen in Fig. \ref{fig:loam-segmap_flowchart}, the first challenge is to calculate a suitable set of feature points from the received laser scans. Let $\mathcal{P}_k$ be a received point cloud scan for the sweep $k \in Z^+$. For the lidar ego-coordinate system ${L}$ the algorithm was modified to use a more typical coordinate axes convention of $x$ forward, $y$ left and $z$ up right-hand rule. The coordinates of the point $i$, where $i \in \mathcal{P}_k$ in ${L_k}$ are denoted as $\boldsymbol{X}_{k,i}^L$. 
+%As for lidar, the density of point measurements are not even on the vertical and horizontal axes, we would like to also distinguish the consecutive points on a single horizontal line of the scan, generated by a single rotating laser scanner and denoted by $S$.
+We would like to select the feature points that are on sharp edges and planar surfaces, by calculating the smoothness of the local surface. The selected feature points are filtered by region to avoid over crowded areas, unreliable parallel surfaces and  within the accepted threshold of $c$ smoothness values $c$.
+% To define the smoothness of a local surface, the points in scans are sorted based on $c$ values and calculated by,
+%\begin{equation}\label{eq:loam_smoothness}
+ %   c=\frac{1}{|S| \cdot \| \boldsymbol{X}_{(k,i)}^L\|} \|\sum_{j\in S, j \neq i}\big ( \boldsymbol{X}_{(k,i)}^L - \boldsymbol{X}_{(k,j)}^L \big )\|
+%\end{equation}
+%The highest $c$ values assigned to the points are accepted as edge points, the lowest $c$ values to be planar points. To avoid crowded feature points we separate the space into four identical parts and allow a maximum number of two points per region for the edge and planar points both. While selecting feature points some additional selection is applied to filter the unreliable feature points:
+%\begin{itemize}
+ %   \item We want to avoid selecting points whose surrounding points are already selected,
+  %  \item also avoiding points on local planar surfaces to the laser beams.
+  %  \item The assigned $c$ value is higher\textbackslash smaller than the edge\textbackslash planar points, but cannot exceed the maximum.
+%\end{itemize}
+Then the accepted feature points of the reprojected $\mathcal{P}_k$ and $\mathcal{P}_{k+1}$ are available, their feature points are stored in a 3D KD-tree with their calculated $c$ values and separated as planar or edge points. The closest neighbours of feature points are then selected from the consecutive scans to calculate the edge lines of two or more points or planar patches for a minimum number of three planar feature points. Then for verification of the correspondence, the smoothness of the local surface is checked based on the same smoothness equation.
+
+For the pose transform calculations $\mathbf{T}^L_{k+1}$ is the 6DOF rigid motion between timestamps $[t_{k+1}, t]$. Where $\mathbf{T}^L_{k+1}=[t_x, t_y, t_z, \theta_x, \theta_y, \theta_z]^T$ in \{L\} and is solved with minimizing the function of: 
+\begin{equation}
+  \bm{\mathscr{f}}(\mathbf{T}^L_{k+1})=\mathbf{d}
+\end{equation}
+where each row of $\bm{\mathscr{f}}$ corresponds to a feature point weighted with smaller weights if their correspondence distance$\mathbf{d}$ is larger and through nonlinear iterations minimizing $\mathbf{d}$ to zero. 
+With the converged or after the maximum iteration number terminated optimization $\mathbf{T}^L_{k+1}$ contains the Lidar ego-motion between $[t_{k+1}, t_{k+2}]$ the final step of the LOAM algorithm, the Mapping registers the scans $\mathcal{P}_k$ in \{W\} for all previous scans, thus defining $\mathcal{Q}_k$ point cloud on the map. Here the feature points and correspondence matching is made similarly as previously, only instead of $\mathcal{P}_k$ and $\mathcal{P}_{k+1}$ $\mathcal{Q}_k$ and $\mathcal{Q}_{k+1}$ is used with a 10 times lower frequency and 10 times higher number of feature points. Finally, to evenly distribute the points in the map the clouds are voxelized into a 5 cm grid and the odometry poses updated by the mapping frequency and broadcasted to the localization part of our algorithm. 
+
+\subsection{3D place recognition} \label{localization}
+As seen on Fig. \ref{fig:loam_maps}, LOAM odometry and consequently its mapping performance is outstanding along short trajectories. However, in case of longer sequences a significant drift is accumulated, that needs to be cancelled for reliable vehicle position estimates. For this purpose, we choose the SegMap algorithm with additional descriptors used from the Segmatch algorithm \cite{segmatch} to localize against a known target map. These algorithms share a common approach in the localization problem as using both the local and target maps the same way, thus will be introduced together. The only difference in the two methods are the feature values and dimensions of the segments as it will be detailed later in this subsection. 
+
+%The SegMap was ideal for our needs as it introduces a robust correspondence recognition, thus a localization method in even large scale unstructured environments. The 3D segment approach provides a good compromise between local and global description and robust to environmental changes, even filtering moving objects such as vehicles or cars.  Also, an essential strength of the algorithm, that it can perform a 1 Hz localization recognition frequency on an average computer that has to calculate the odometry values simultaneously using the previously described LOAM algorithm. 
+Fig. \ref{fig:loam-segmap_flowchart} shows the complete pipeline including the modular design of the SegMap algorithm. It first extracts the pointcloud after a voxelization and filtering step then describes the segments from the 3D lidar point clouds and matches these segments to the offline segmented and described target map. Due to the modular design of this framework, it was straightforward to implement the different methods of feature extraction and description into the system, such as incorporating the novel 3D point cloud Convolutional Neural Network (CNN) descriptor of SegMap.
+
+%The first step of the matching algorithm is the segmentation block. For the offline segmentation of the target map and also the online segmentation of the real-time local map of the vehicle, the point clouds are given in the global \textit{map} reference frame. First, the ground plane is stripped according to the vertical \textit{z} axes distance of the individual points, then a voxelization method is applied to remove noisy point measurements and homogenize density. On the filtered cloud a "Cluster-All Method is used of \cite{segmentation}, then Euclidean clustering method is used for growing the segments. These steps perform robustly for a wide range of lidar resolution and frequency, satisfying the requirement of real-time operation. 
+
+%On given segments the next challenge as in Fig. \ref{fig:loam-segmap_flowchart} the feature and descriptor extraction. 
+Here we tested and used two different methods, the first based on the original SegMatch algorithm, then the second proposed in the SegMap paper as previously mentioned. 
+%When a segment is detected and segmented from the received point-cloud, we use the included points to store them as the first view of the segment. Later for more consecutive scans of the same segment, additional views are created with an increasing line of sight of the same object and a higher number of associated points. In a created segment all the views are described, but only the latest is used for the utmost confidence. 
+On a given segment of $\mathcal{C}_i$ an optional length feature vector is created containing the different type of descriptors: $\mathscr{f}_i=[\mathscr{f_i}^1, \mathscr{f_i}^2, \dots, \mathscr{f_i}^m]$:
+
+\begin{itemize}
+    \item $\mathscr{f}_1$ \textit{Eigenvalue based} method calculates the eigenvalues of the segment's points and combined in a 1x7 vector. Here  the \textit{linearity}, \textit{planarity}, \textit{scattering}, \textit{omnivarence}, \textit{anisotropy}, \textit{eigenentropy} and \textit{curvature change} measures as proposed in \cite{eigen_features}. 
+    \item $\mathscr{f}_2$ A CNN based approach to achieve a data driven descriptor. First the voxelized segment is resized to a fixed 32x32x16 input size, then forwarded to a simple convolutional network topology. Three 3D convolutional and max pooling layers are followed by two fully connected (FC) layers with dropout. Also the original scale of input segment is passed as an additional parameter to the first FC layer to increase robustness. The final descriptor vector of 1x64 size is obtained by the activations of the last of the two FC layers.
+\end{itemize}
+
+%The last challenge in the original SegMap method is the segment matching performance between the described target- and local segments. For this a learning-based approach is utilized, a classifier is responsible to decide if two segments are representing the same object. First, a k-d tree search in the feature space is performed distinguish by the number of features in the vector, then the results fed to the pretrained random forest classifier. The random forest determines whether clusters $\mathcal{C}_i$ and $\mathcal{C}_j$ are representing the same object by computing the absolute difference in the feature space: $\Delta f^i=|f^i_j-f^i_k|$.
+
+Finally, on the results a learning-based classifier is responsible for building the final list of match candidates based on the feature vector similarities. 
+
+\subsection{Localization update and further enhancements}\label{our_contribution}
+
+The previously introduced modules were thoughtfully chosen to work together and complete each other, hereby we present the details to incorporate the segment matching recognitions and the real-time odometry estimates into our solution. 
+% Though the original SegMap algorithm contained a solution, where instead of the required IMU or GPS based odometry pose information, only the lidar scans were used to calculate a basic odometry only with scan-to-scan ICP calculations, but replacing this part with the LOAM algorithm resulted in a much better performance. 
+This following section is also meant to present our contribution regarding the refined relocalization performance and filtering of the false-positive matches with an additional advanced RANSAC based geometric verification. 
+
+First, we extended the geometric verification step of the original SegMap algorithm with additional filtering for location. We search in the database of segments only within an adjustable threshold of centroid distance from our odometry position, this way reducing the putative correspondence candidates. After the matches are found in this reduced pool of segments we check the consistency of pairs with the following criteria. The absolute difference of translation vectors between the different match pair centroids can not exceed a given parameter, this way filtering the clear outliers with a minimal computing capacity. Next, we create a point cloud of the remaining matching segment centroids and through a RANSAC iteration with terminal statements for max iteration and convergence score we align the source and target centroid point clouds, with filtering the outlier pairs again. The performance of our filtering method can be seen in Table \ref{tab:ransac_table}. 
+
+\begin{figure}[ht!]
+    \begin{center} \begin{tabular}{c@{\hspace{1mm}}c@{\hspace{1mm}}}
+        \includegraphics*[width=0.44\linewidth]{figures/match_recognition.png} &
+        \includegraphics*[width=0.44\linewidth]{figures/prior_transform.png} \\
+        (a) & (b) \\
+        \includegraphics*[width=0.44\linewidth]{figures/after_align.png} &
+        \includegraphics*[width=0.44\linewidth]{figures/icp_refine.png} \\
+         (c) & (d)\\
+    \end{tabular}
+        \caption{The required steps for aligning the local and target point cloud segments to cancel the drift in the odometry estimate. First, we calculate the transformation by the segment centroids, RANSAC filter the outlier matches, then refine the update estimate by ICP matching the corresponding segment point clouds.}
+    \label{fig:pose_refine}
+    \end{center}
+\end{figure}
+
+On the remaining segments now we have high confidence in being a true positive, therefore we can calculate based on these matches the required 6DOF update transformation between the estimated and the true global pose of the vehicle. The problem solution for aligning the centroids is clear, but might not be the best solution for us. The reason for it is derived from the motion of the lidar scanner. As the lidar moves forward and detects a new segment for the first time, the form and line of sight of the object will be incomplete. Though the descriptors with eigenvalues or the CNN descriptor are robust enough to recognize an incomplete and a complete scan from the same objects \cite{segmap}, their centroids will not cover each others position. This could result in only a small transition in the update pose, but a huge angular error in the fitting if we optimize for the minimum squared error. Instead, we used a more precise method using the entire point cloud of the segments. Let $W_e^W$ be the odometry pose estimate of the vehicle in the global reference frame \{W\} a dimension of 4x4 homogeneous transformation matrix and $W_t^W$ the true pose. Also $R_t^W$ is the 3x3 3D rotation matrix and $V_t^W$ is the 3x1 translation vector of $W_t^W$. Here $W_t^W$ can be obtained after calculating $W_u^W$ update transformation between the estimated and localized pose by
+
+\begin{equation}
+    W_t^W=W_u^W  W_e^W.
+\end{equation}
+
+Our only task is to calculate the update transformation following the steps below:
+\begin{enumerate}
+    \item We take the local point cloud $P_l^R$ of the robot in \{R\}, a right-hand rule coordinate system in the \{W\}, where the position of the lidar is in the origin and faces in $x$ axes direction. Here we first translate the cloud to the world coordinate system, to compare with the target cloud. In Fig. \ref{fig:pose_refine}(a) the local cloud is visualized by different colours for the different segments and the target map with white colour. The vector connecting the matching segment pairs are drawn with a green line. On Fig. \ref{fig:pose_refine}(b) one can see the source cloud with orange and the target cloud with a green colour now in the same coordinate system \{W\}. 
+    \item For an accepted number of $n$ matches we calculate a prior mean transformation by transforming the $P_l^W$ by $W_p^W$ transformation matrix, where $R_p^W$ and the homogeneous row is an identity matrix, $\underset{3\times 1}{V_{sp,i}^W}$ is the vector connecting the centroids of the i\textsuperscript{th} segment pair and
+    \begin{equation}
+        T_p^W=\frac{1}{n}\sum_{i=0}^n V_{sp,i}^W
+    \end{equation}
+    The result of this prior transformation on a real segment can be seen in Fig. \ref{fig:pose_refine}(c) with the target cloud visualized with green colour and a true positive matching segment by blue. 
+    \item The final step of cloud alignment is an ICP step of point clouds. Here we only keep the points in $P_t^W$ target point cloud, that belongs to a true segment (accepted by the RANSAC filter) and align these set of points with an ICP step to the previously translated $P_l^W$. The output of this operation will now be a small refinement matrix $W_{ICP}^W$. The result of this fine alignment can be seen in Fig. \ref{fig:pose_refine}(d). 
+\end{enumerate}
+
+Finally $W_u^W$, and this way the truly localized pose of the robot can be calculated by simply following the multiplication order of our calculated transformation matrices, all defined in the world coordinate frame and resulting,
+
+\begin{equation}
+    W_t=W_u  W_e =  W_p W_{ICP}^{-1} W_e.
+\end{equation}
+
+This method was tested to be straightforward, with terminal statements of the ICP step computationally effective method, yet resulted in an excellent performance even running on an average strength PC and without the loss of tracking on the longest sequences. 
+
+\section{EXPERIMENTS} \label{experiments}
+
+All experiments were performed on a system equipped with
+an Intel i7-6700K processor, with 32 Gb of RAM and an Nvidia GeForce GTX 1080 GPU performing easily in real-time operation. 
+The timings for mean values in miliseconds and for standard deviations in parenthesis were 372.7 (7.2) for segmentation, 0.40 (0.26) for description, 26.27 (14.27) for match recognition in the reduced candidate pool, 0.09 (0.7) for the additinal RANSAC geometric filtering, and finally 88.0 (37.2) for the ICP alignment. The tested sequences were based on the Kitti Vision benchmark dataset, but we used especially the Drive number 18., 27. and 28. sequences as they were the longest in residential and city areas. The ground truth maps were created with the \textit{laser\_slam} tool that was made available with the SegMap algorithm. 
+
+Fig. \ref{fig:abs_error} bottom diagrams are representing the quantitative results of our method compared to the original LOAM algorithm and based on the absolute difference from the given ground truth trajectory. In Fig. \ref{fig:abs_error} bottom left one can see the absolute error for the number of scans and their distribution in occurrence in Fig. \ref{fig:abs_error} bottom right for the same sequence and colour codes. Moreover, Fig. \ref{fig:abs_error} top shows the whole trajectory, where the black trajectory of ground truth is visualized together with the red loam path and green path of our updated trajectory. As one can note from the figures either on these or previously in Fig. \ref{fig:loam_maps} the resulted trajectory is significantly better than the original odometry without losing the ability of real-time performance and always being able to relocalize after built up drift resulted from noisy lidar measurements and moving objects. 
+
+\begin{figure}[!t]
+\centerline{\includegraphics[width=0.5\textwidth]{figures/full_evaluate_18.png}}\par
+\caption{The absolute error for the relocalized poses of our updated path and the path from the original LOAM algorithm on the Kitti Drive 18 dataset. Here the value of the absolute error is calculated by comparing the global pose of a trajectory node at the timestamp of a scan to the corresponding ground truth trajectory pose with the same timestamp. The error is calculated by the 3D Euclidean distance of poses.}
+\label{fig:abs_error}
+\end{figure}
+
+
+\begin{table}[!t]
+\centering
+\caption{Number of putative SegMap correspondences and accepted relocalizations with RANSAC filtering for different minimum cluster sizes}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+Sequence\textbackslash Cluster size[-] & 2 & 3 & 4 & 5\\
+\hline
+Drive 18 & 579/49/2 &299/36/0 & 8/25/0 &0/22/0\\
+Drive 27& 756/41/3 & 311/32/0 & 14/26/0 & 0/14/0\\
+Drive 28 & 686/85/3& 421/70/0 & 158/54/1 &0/30/0\\
+\hline
+\end{tabular}
+\label{tab:ransac_table}
+\end{table}
+
+In Table \ref{tab:ransac_table} we summarize the performance of our filtering method for the different cluster sizes of putative SegMap correspondence candidates and the examined three sequences. In every measurement setting the numbers represent respectively the filtered false positive matches, the accepted true positives and the accepted false positives that resulted in false global relocalization. The truth of the matches were verified according to the correlation of their resulting transformation with the ground truth trajectory. Originally SegMap in localization mode did not included a similar filtering algorithm, only dealt with the problem of correspondence recognition. Based on Table \ref{tab:ransac_table} one can conclude that the proposed solution improved the relocalization significantly in a wide range of cluster sizes by filtering out false positive correspondence, thus incorrect localization updates.
+
+\section{CONCLUSION} \label{conclusion}
+To conclude, this method solves the problem of lidar-only odometry and localization in predefined 3D point cloud maps. Our algorithm consists of two state-of-the-art algorithms integrated in such a way to complement each other deficiencies and to highlight their advantages. Furthermore, we completed our solution with an advanced RANSAC filtering for additional certainty and ICP matching of the local- and target maps for increased precision.
+%Our general LOL algorithm outperforms other methods in every subtask with keeping the computational complexity at an affordable level to perform in real-time operation. 
+
+\addtolength{\textheight}{-8cm}   % This command serves to balance the column lengths
+                                  % on the last page of the document manually. It shortens
+                                  % the textheight of the last page by a suitable amount.
+                                  % This command does not take effect until the next page
+                                  % so it should come on the page before the last. Make
+                                  % sure that you do not shorten the textheight too much.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\bibliographystyle{IEEEtran}
+\bibliography{lol}
+
+\end{document}
